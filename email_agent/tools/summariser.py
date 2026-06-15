@@ -1,0 +1,69 @@
+import os
+import sys
+
+# Add the 'email_agent' root directory to the Python path
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
+
+from dotenv import load_dotenv
+from langchain_core.prompts import PromptTemplate
+from langchain_google_genai import ChatGoogleGenerativeAI
+
+load_dotenv()
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+
+SUMMARISER_PROMPT = """
+<>
+You are an expert email assistant. Read the following email and provide a concise, clear, and actionable summary of its contents.
+If the subject is empty, then continue to summarize without it.
+
+Subject: {subject}
+Content: {content}
+</>
+"""
+
+from typing import Annotated
+from langgraph.prebuilt import InjectedState
+from langchain_core.tools import tool
+
+@tool
+def summarize_email(email_id: str, state: Annotated[dict, InjectedState]) -> str:
+    """
+    Analyzes and summarizes the core message of an email. 
+    Extracts key points and provides a concise, actionable summary.
+
+    Args:
+        email_id (str): The ID of the email to be summarized.
+        state (dict): The injected graph state containing fetched emails.
+
+    Returns:
+        str: A concise summary of the email.
+    """
+    emails = state.get("emails", [])
+    email = next((e for e in emails if e.get("id") == email_id), None)
+    
+    if not email:
+        return f"No email found with ID: {email_id}. Make sure it is in the recent emails list."
+        
+    prompt_template = PromptTemplate(
+        input_variables=["subject", "content"],
+        template=SUMMARISER_PROMPT
+    )
+    
+    formatted_prompt = prompt_template.format(
+        subject=email.get("subject", ""),
+        content=email.get("body", "")
+    )
+    
+    llm = ChatGoogleGenerativeAI(
+        model="gemini-2.5-flash",
+        api_key=GEMINI_API_KEY,
+        temperature=0.0
+    )
+    
+    # We just want the raw text response for a summary, not structured output
+    response = llm.invoke(formatted_prompt) 
+    
+    return response.content
+
+if __name__ == "__main__":
+    pass
