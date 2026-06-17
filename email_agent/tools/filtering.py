@@ -1,9 +1,6 @@
 import os
 import sys
 
-# Add the 'email_agent' root directory to the Python path
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
-
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
 from langchain_core.prompts import PromptTemplate

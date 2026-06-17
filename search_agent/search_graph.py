@@ -12,8 +12,8 @@ try:
 except ImportError:
     raise ImportError("Please install the required package: pip install langchain-google-genai")
 
-from tool import tavily_search
-from prompt import SEARCH_AGENT_PROMPT
+from search_agent.search_tools import tavily_search
+from search_agent.search_prompt import SEARCH_AGENT_PROMPT
 
 # Define the state structure for our graph
 class AgentState(TypedDict):

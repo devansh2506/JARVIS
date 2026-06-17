@@ -13,8 +13,8 @@ except ImportError:
     print("Please install required packages: pip install langchain-core langchain-google-genai langgraph tavily-python")
     sys.exit(1)
 
-from graph import create_search_graph
-from render import render_message, console
+from search_agent.search_graph import create_search_graph
+from search_agent.search_render import render_message, console
 
 def main():
     # Check for required environment variables before starting

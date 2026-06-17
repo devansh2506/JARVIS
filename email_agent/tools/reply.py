@@ -2,9 +2,6 @@ import os
 import sys
 from typing import Annotated
 
-# Add the 'email_agent' root directory to the Python path
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
-
 from dotenv import load_dotenv
 from langchain_core.prompts import PromptTemplate
 from langchain_google_genai import ChatGoogleGenerativeAI
