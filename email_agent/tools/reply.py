@@ -1,15 +1,24 @@
 import os
 import sys
 from typing import Annotated
+import json
 
 from dotenv import load_dotenv
 from langchain_core.prompts import PromptTemplate
-from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_core.tools import tool
+from langchain_groq import ChatGroq
+from langchain_core.tools import tool, InjectedToolCallId
+from langchain_core.messages import ToolMessage
+from langgraph.types import Command
 from langgraph.prebuilt import InjectedState
+from pydantic import BaseModel, Field
+
+class EmailDraft(BaseModel):
+    receiver_id: str = Field(description="The email address of the receiver")
+    subject: str = Field(description="The subject of the email")
+    body: str = Field(description="The main content of the email")
 
 load_dotenv()
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+GROQ_API_KEY3 = os.getenv("GROQ_API_KEY3")
 
 REPLY_EMAIL_PROMPT = """<>
 You are an expert email copywriter. You need to write a professional reply to the following email.
@@ -28,7 +37,7 @@ Drafted Reply:
 """
 
 @tool
-def reply_email(email_id: str, content: str, state: Annotated[dict, InjectedState]) -> str:
+def reply_email(email_id: str, tool_call_id: Annotated[str, InjectedToolCallId], content: str = None, state: Annotated[dict, InjectedState] = None) -> Command:
     """
     Generates a professional reply to an existing email.
     
@@ -58,12 +67,24 @@ def reply_email(email_id: str, content: str, state: Annotated[dict, InjectedStat
         content=content if content else "No specific instructions provided. Please draft a polite, standard reply."
     )
     
-    llm = ChatGoogleGenerativeAI(
-        model="gemini-2.5-flash",
-        api_key=GEMINI_API_KEY,
+    llm = ChatGroq(
+        model="llama-3.3-70b-versatile",
+        api_key=GROQ_API_KEY3,
         temperature=0.0
     )
     
-    response = llm.invoke(formatted_prompt) 
+    structured_llm = llm.with_structured_output(EmailDraft)
+    response: EmailDraft = structured_llm.invoke(formatted_prompt)
     
-    return response.content
+    return Command(
+        update={
+            "email_draft": {
+                "receiver_id": response.receiver_id,
+                "subject": response.subject,
+                "body": response.body
+            },
+            "messages": [
+                ToolMessage(content="Reply drafted successfully and saved to state.", tool_call_id=tool_call_id)
+            ]
+        }
+    )

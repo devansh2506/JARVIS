@@ -3,10 +3,10 @@ import sys
 
 from dotenv import load_dotenv
 from langchain_core.prompts import PromptTemplate
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_groq import ChatGroq
 
 load_dotenv()
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+GROQ_API_KEY2 = os.getenv("GROQ_API_KEY2")
 
 SUMMARISER_PROMPT = """
 <>
@@ -51,9 +51,9 @@ def summarize_email(email_id: str, state: Annotated[dict, InjectedState]) -> str
         content=email.get("body", "")
     )
     
-    llm = ChatGoogleGenerativeAI(
-        model="gemini-2.5-flash",
-        api_key=GEMINI_API_KEY,
+    llm = ChatGroq(
+        model="llama-3.1-8b-instant",
+        api_key=GROQ_API_KEY2,
         temperature=0.0
     )
     

@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 
 from langgraph.graph import StateGraph, START, END
 from langgraph.prebuilt import ToolNode
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_groq import ChatGroq
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, ToolMessage
 from langgraph.checkpoint.memory import MemorySaver
 import json
@@ -26,15 +26,15 @@ from email_agent.tools.reply import reply_email
 from email_agent.email_connector import save_as_draft, get_gmail_service
 
 load_dotenv()
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+GROQ_API_KEY3 = os.getenv("GROQ_API_KEY3")
 
 # Gather tools
 tools = [summarize_email, filter_email, create_email, list_emails, reply_email]
 
 # Initialize model
-llm = ChatGoogleGenerativeAI(
-    model="gemini-2.5-flash",
-    api_key=GEMINI_API_KEY,
+llm = ChatGroq(
+    model="llama-3.3-70b-versatile",
+    api_key=GROQ_API_KEY3,
     temperature=0.0
 )
 
@@ -54,18 +54,24 @@ def call_model(state: AgentState):
     return {"messages": [response]}
 
 def review_node(state: AgentState):
+    
     """
     Shows the draft from the tool and asks for changes.
     """
-    messages = state["messages"]
-    # The last message is the ToolMessage with the draft
-    draft_msg = messages[-1]
-    
-    print("\n--- EMAIL DRAFT PENDING REVIEW ---")
-    print(f"{draft_msg.content}")
+    print("\n----------------------------------")
+    print("    EMAIL DRAFT PENDING REVIEW    ")
     print("----------------------------------")
     
-    feedback = input("\nProvide feedback for changes (or hit enter to approve): ")
+    draft = state.get("email_draft", {})
+    if draft:
+        print(f"To: {draft.get('receiver_id', 'Unknown')}")
+        print(f"Subject: {draft.get('subject', 'No Subject')}")
+        print("Body:")
+        print(f"{draft.get('body', '')}\n")
+    
+    print("----------------------------------")
+    
+    feedback = input("\nReview the drafted email above. Provide feedback for changes (or hit enter to approve): ")
     if not feedback.strip():
         feedback = "Looks good, no revisions needed. Please finalize the email as is."
     else:
@@ -79,19 +85,28 @@ def format_and_save_node(state: AgentState):
     Then saves it as a draft in Gmail.
     """
     messages = state["messages"]
+    draft = state.get("email_draft", {})
+    last_feedback = messages[-1].content
     
     structured_llm = llm.with_structured_output(EmailDraft)
     print("\nJARVIS is finalizing the draft...")
     
-    system_msg = SystemMessage(content="You are an expert email assistant. Extract the final email details based on the conversation history. Apply any requested revisions from the user's last message.")
-    messages_to_invoke = [system_msg] + messages
-    
     try:
-        final_draft: EmailDraft = structured_llm.invoke(messages_to_invoke)
+        if "Looks good, no revisions needed" not in last_feedback:
+            # User requested changes, let's revise the draft using LLM
+            system_msg = SystemMessage(content=f"You are an expert email assistant. Revise the following email draft based on the user's feedback.\n\nCurrent Draft: {json.dumps(draft)}\n\nUser Feedback: {last_feedback}")
+            final_draft: EmailDraft = structured_llm.invoke([system_msg])
+            
+            # Update the draft state with the revised version
+            draft = {
+                "receiver_id": final_draft.receiver_id,
+                "subject": final_draft.subject,
+                "body": final_draft.body
+            }
         
         print("\nSaving draft to Gmail...")
         service = get_gmail_service()
-        draft_result = save_as_draft(service, final_draft.receiver_id, final_draft.subject, final_draft.body)
+        draft_result = save_as_draft(service, draft.get("receiver_id", ""), draft.get("subject", ""), draft.get("body", ""))
         
         if draft_result:
             success_msg = AIMessage(content=f"Email drafted successfully! Draft ID: {draft_result['id']}. I have saved it to your Gmail.")
@@ -101,7 +116,7 @@ def format_and_save_node(state: AgentState):
     except Exception as e:
         success_msg = AIMessage(content=f"An error occurred while formatting or saving the draft: {str(e)}")
         
-    return {"messages": [success_msg]}
+    return {"messages": [success_msg], "email_draft": draft}
 
 def should_continue(state: AgentState):
     """

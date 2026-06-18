@@ -5,12 +5,13 @@ from typing import Annotated, Sequence, TypedDict
 from langchain_core.messages import BaseMessage, SystemMessage
 from langgraph.graph import StateGraph, END
 from langgraph.prebuilt import ToolNode
+from langgraph.checkpoint.memory import MemorySaver
 
-# Use Google Generative AI (Gemini) instead of OpenAI
+# Use Groq instead of OpenAI
 try:
-    from langchain_google_genai import ChatGoogleGenerativeAI
+    from langchain_groq import ChatGroq
 except ImportError:
-    raise ImportError("Please install the required package: pip install langchain-google-genai")
+    raise ImportError("Please install the required package: pip install langchain-groq")
 
 from search_agent.search_tools import tavily_search
 from search_agent.search_prompt import SEARCH_AGENT_PROMPT
@@ -27,14 +28,13 @@ def call_llm(state: AgentState):
     if not messages or not isinstance(messages[0], SystemMessage):
         messages = [SystemMessage(content=SEARCH_AGENT_PROMPT)] + list(messages)
         
-    # Initialize the Gemini LLM
-    # We check for GEMINI_API_KEY first, fallback to GOOGLE_API_KEY
-    api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+    # Initialize the Groq LLM
+    api_key = os.environ.get("GROQ_API_KEY1")
     
-    llm = ChatGoogleGenerativeAI(
-        model="gemini-2.5-flash",
+    llm = ChatGroq(
+        model="llama-3.3-70b-versatile",
         temperature=0,
-        google_api_key=api_key
+        api_key=api_key
     )
     
     # Bind the tools to the LLM
@@ -84,11 +84,12 @@ def create_search_graph():
     # 5. Add a normal edge: always go back to the LLM after tools execute
     workflow.add_edge("tools", "call_llm")
     
-    # 6. Compile the graph
-    app = workflow.compile()
+    # 6. Set up Checkpointer and Compile the graph
+    memory = MemorySaver()
+    app = workflow.compile(checkpointer=memory)
     return app
 
 if __name__ == "__main__":
     # Test building the graph
     app = create_search_graph()
-    print("Successfully built the search agent graph with Gemini!")
+    print("Successfully built the search agent graph with Groq!")

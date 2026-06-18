@@ -17,7 +17,7 @@ calendar_app = calendar_graph_module.graph
 email_app = email_graph_module.graph
 
 @tool
-def search_agent_tool(query: str) -> str:
+def search_agent_tool(query: str, thread_id: str = "search_thread") -> str:
     """
     Invokes the Search Agent to search the web and retrieve current information.
     
@@ -32,8 +32,9 @@ def search_agent_tool(query: str) -> str:
     - Synthesize information from multiple internet sources.
     - Answer questions about recent events that are not in the model's training data.
     """
+    config = {"configurable": {"thread_id": thread_id}}
     state = {"messages": [HumanMessage(content=query)]}
-    result = search_app.invoke(state)
+    result = search_app.invoke(state, config=config)
     return result["messages"][-1].content
 
 

@@ -8,3 +8,4 @@ class AgentState(MessagesState):
     """
     revision_count: int
     emails: List[Dict[str, Any]]
+    email_draft: Dict[str, Any]

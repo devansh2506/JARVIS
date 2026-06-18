@@ -1,8 +1,8 @@
 import os
 from dotenv import load_dotenv
 
-from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_core.messages import SystemMessage
+from langchain_groq import ChatGroq
+from langchain_core.messages import SystemMessage, AIMessage
 from langgraph.graph import StateGraph, START, END, MessagesState
 from langgraph.prebuilt import ToolNode
 from langgraph.checkpoint.memory import MemorySaver
@@ -13,12 +13,12 @@ from prompt import SUPERVISOR_PROMPT
 
 # Load environment variables
 load_dotenv()
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+GROQ_API_KEY1 = os.getenv("GROQ_API_KEY1")
 
 # Initialize the LLM
-llm = ChatGoogleGenerativeAI(
-    model="gemini-2.5-flash",
-    api_key=GEMINI_API_KEY,
+llm = ChatGroq(
+    model="llama-3.3-70b-versatile",
+    api_key=GROQ_API_KEY1,
     temperature=0.0
 )
 
@@ -35,6 +35,17 @@ def call_model(state: MessagesState):
     messages_for_llm = [SystemMessage(content=SUPERVISOR_PROMPT)] + messages
     
     response = model_with_tools.invoke(messages_for_llm)
+    
+    # If the model tried to call multiple tools at once, we force it to only use the first one.
+    # It will execute the first one, loop back around, and then decide if it still needs to call the next one.
+    if hasattr(response, "tool_calls") and len(response.tool_calls) > 1:
+        response = AIMessage(
+            content=response.content,
+            additional_kwargs=response.additional_kwargs,
+            response_metadata=response.response_metadata,
+            tool_calls=[response.tool_calls[0]],
+            id=response.id
+        )
     
     return {"messages": [response]}
 

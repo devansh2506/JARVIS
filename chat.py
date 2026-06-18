@@ -1,11 +1,10 @@
-import asyncio
 from graph import graph
 import sys
 from rich.console import Console
 
 console = Console()
 
-async def main():
+def main():
     print("===================================================")
     print("                 JARVIS IS ONLINE                  ")
     print("   Your personal AI assistant at your service.     ")
@@ -20,8 +19,8 @@ async def main():
     
     while True:
         try:
-            # Safely get user input without blocking the async event loop
-            user_input = await asyncio.to_thread(input, "\nYou: ")
+            # Safely get user input synchronously
+            user_input = input("\nYou: ")
         except (KeyboardInterrupt, EOFError):
             break
             
@@ -33,44 +32,17 @@ async def main():
             continue
             
         try:
-            print("\nJARVIS: ", end="", flush=True)
-            
-            # Use astream_events to get real-time updates from the graph
-            async for event in graph.astream_events(
+            # Run the graph synchronously
+            final_state = graph.invoke(
                 {"messages": [{"role": "user", "content": user_input}]},
-                config=config,
-                version="v2"
-            ):
-                kind = event["event"]
-                
-                # Detect when a tool (sub-agent) starts running
-                if kind == "on_tool_start":
-                    tool_name = event["name"]
-                    print(f"\n\n[JARVIS is delegating to sub-agent: {tool_name}...]", end="", flush=True)
-                    
-                # Detect when a tool (sub-agent) finishes
-                elif kind == "on_tool_end":
-                    tool_name = event["name"]
-                    print(f"\n[Sub-agent {tool_name} finished!]\n\nJARVIS: ", end="", flush=True)
-                    
-                # Stream the actual text tokens from the LLM word-by-word
-                elif kind == "on_chat_model_stream":
-                    chunk = event["data"]["chunk"]
-                    if hasattr(chunk, "content") and chunk.content:
-                        content = chunk.content
-                        if isinstance(content, str):
-                            console.print(content, end="")
-                        elif isinstance(content, list):
-                            for block in content:
-                                if isinstance(block, dict) and block.get("type") == "text":
-                                    console.print(block.get("text", ""), end="")
-                                elif isinstance(block, str):
-                                    console.print(block, end="")
-                        
-            print() # Print a final newline when the stream completes
+                config=config
+            )
+            
+            final_message = final_state["messages"][-1]
+            print(f"\nJARVIS: {final_message.content}\n")
             
         except Exception as e:
             print(f"\nJARVIS Error: {e}")
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
